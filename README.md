@@ -1,2 +1,2 @@
-# agan
+# aGAN
 GAN to create abstract art
