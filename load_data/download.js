@@ -31,7 +31,6 @@ fs.readFile('urls.json', (err, data) => {
 
                     download(url, path.join(__dirname, '../raw/' + filename));
                 }
-
             }catch(e){
                 console.log(e);
                 console.log(msg);

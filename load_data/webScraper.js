@@ -8,16 +8,32 @@ import Nightmare from 'nightmare';
 // Functions that operate in the browser scope
 
 // Check whether the load button still exists
-const checkLoad = () => document.querySelectorAll('a.masonry-load-more-button')[0].style.display != 'none';
-
+const checkLoad = () => {
+    const button = document.querySelector('a.masonry-load-more-button');
+    return button.offsetParent != null;
+}
 // Check whether all images have loaded (WikiArt uses lazy loading)
 const checkLoaded = (selector, i) => {
-    if(i == 0) window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});
+    let m = i % 2 == 0 ? 1 : -1;
+    if(i % 15 == 0) window.scrollTo({top: m*document.body.scrollHeight, behavior: 'smooth'});
 
     const lazyUrl = 'https://uploads.wikiart.org/Content/wiki/img/lazy-load-placeholder.png';
     const imgs = Array.from(document.querySelectorAll(selector));
 
-    return imgs.every(img => img.src != lazyUrl);
+    return imgs.every(img => img.src != lazyUrl || !img);
+}
+
+const lastResort = (selector, i) => {
+    const imgs = Array.from(document.querySelectorAll(selector));
+    const lazyUrl = 'https://uploads.wikiart.org/Content/wiki/img/lazy-load-placeholder.png';
+    const notLoaded = imgs.filter(img => img.src == lazyUrl);
+
+    if(notLoaded.length > 1){
+        notLoaded[0].scrollIntoView({behavior: 'smooth'});
+        return false;
+    }else{
+        return true;
+    }
 }
 
 // Get all image srcs on the page
@@ -32,28 +48,40 @@ const getImages = selector => {
 async function scrapeGenre(genre){
 
     let loadMoreExists = true;
-    let i = 0;
+    let j = 0;
+
     // Keep clicking load more while it's an option
-    while(loadMoreExists && i < 1){
-        await genre.click('a.masonry-load-more-button')
-        loadMoreExists = await genre.evaluate(checkLoad);
-        i++;
+    while(loadMoreExists){
+        try {
+            await genre.click('a.masonry-load-more-button');
+            loadMoreExists = await genre.evaluate(checkLoad);
+        }catch(_e){
+            break;
+        }
+
+        console.log(j);
+        j++;
     }
 
     let lastImageLoaded = false;
-    i = 0;
+    let i = 0;
 
     // Wait for lazy loading to finish
     while(!lastImageLoaded){
         await genre.wait(1000);
-        lastImageLoaded = await genre.evaluate(checkLoaded, 'li.ng-scope img', i);
+
+        if(i <= 90){
+            lastImageLoaded = await genre.evaluate(checkLoaded, 'li.ng-scope img', i);
+        }else if(i % 3 == 0){
+            lastImageLoaded = await genre.evaluate(lastResort, 'li.ng-scope img', i);
+        }
         i++;
     }
 
     // Get a list of scraped image URLs and add to ./urls.json
     const image_srcs = {urls: await genre.evaluate(getImages, 'li.ng-scope img')};
-    fs.writeFileSync('./urls.json', JSON.stringify(image_srcs));
 
+    fs.writeFileSync('./urls.json', JSON.stringify(image_srcs));
 }
 
 // Get data from the abstract art section
