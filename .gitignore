@@ -1,4 +1,7 @@
-/load_data/urls.json
 /raw
 /assets
+/examples
+/checkpoints
+/load_data/urls.json
 /load_data/node_modules
+/load_data/package-lock.json

@@ -13,22 +13,22 @@ class AGAN:
         self.noise_size = noise_size
 
         generator = keras.Sequential()
-        generator.add(layers.Dense(7*7*256, use_bias=False, input_shape=(self.noise_size,)))
+        generator.add(layers.Dense(25*25*180, use_bias=False, input_shape=(self.noise_size,)))
         generator.add(layers.BatchNormalization())
         generator.add(layers.LeakyReLU())
-        generator.add(layers.Reshape((7,7,256)))
-        generator.add(layers.Conv2DTranspose(128, (5,5), strides=(1,1), padding='same', use_bias=False))
+        generator.add(layers.Reshape((25,25,180)))
+        generator.add(layers.Conv2DTranspose(90, (5,5), strides=(1,1), padding='same', use_bias=False))
         generator.add(layers.BatchNormalization())
         generator.add(layers.LeakyReLU())
         generator.add(layers.Conv2DTranspose(64, (5,5), strides=(2,2), padding='same', use_bias=False))
         generator.add(layers.BatchNormalization())
         generator.add(layers.LeakyReLU())
-        generator.add(layers.Conv2DTranspose(1, (5,5), strides=(2,2), padding='same', use_bias=False, activation='tanh'))
+        generator.add(layers.Conv2DTranspose(3, (5,5), strides=(2,2), padding='same', use_bias=False, activation='tanh'))
 
         self.G = generator
 
         discriminator = keras.Sequential()
-        discriminator.add(layers.Conv2D(64, (5,5), strides=(2,2), padding='same', input_shape=[28,28,1]))
+        discriminator.add(layers.Conv2D(64, (5,5), strides=(2,2), padding='same', input_shape=(100,100,3)))
         discriminator.add(layers.LeakyReLU())
         discriminator.add(layers.Dropout(0.3))
         discriminator.add(layers.Conv2D(128, (5,5), strides=(2,2), padding='same'))
@@ -66,7 +66,7 @@ class AGAN:
 
         for i in range(generated.shape[0]):
             plt.subplot(4, 4, i + 1)
-            plt.imshow(generated[i,:,:,0]*127.5 + 127.5, cmap='gray')
+            plt.imshow((generated[i,:,:] + 1)/2)
             plt.axis('off')
 
         plt.savefig('./examples/' + name  + '.png')
