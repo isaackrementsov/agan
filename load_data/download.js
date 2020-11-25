@@ -4,7 +4,6 @@ import request from 'request';
 import path from 'path';
 
 const __dirname = path.resolve();
-const start = new Date().getTime();
 const msg = 'Valid data not found in urls.json! Run webScraper.js first.';
 
 const download = (url, path) => {
