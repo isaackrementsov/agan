@@ -14,5 +14,25 @@ train_images = [to_array(img) for img in os.listdir('assets/')]
 training_data = split(BATCH_SIZE, train_images)
 print('Done preparing training data')
 
-aGAN = AGAN(100, BATCH_SIZE)
-aGAN.train(training_data, 4000, 5, 0)
+aGAN = AGAN(
+    noise_size=100,
+    batch_size=BATCH_SIZE
+)
+aGAN.restore()
+
+try:
+    aGAN.train(
+        dataset=training_data,
+        epochs=4000,
+        example_interval=5,
+        save_interval=50,
+        example_offset=6815
+    )
+except KeyboardInterrupt:
+    try:
+        print('Saving...')
+        aGAN.save()
+    except KeyboardInterrupt:
+        print('Failed to save model because the program was force-stopped')
+    finally:
+        quit()

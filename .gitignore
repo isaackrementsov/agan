@@ -1,7 +1,12 @@
 /raw
 /assets
 /examples
+/frames
+/examples_old
+/examples_old2
 /checkpoints
 /load_data/urls.json
 /load_data/node_modules
 /load_data/package-lock.json
+/Generator
+/Discriminator
