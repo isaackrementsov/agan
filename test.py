@@ -8,6 +8,6 @@ aGAN = AGAN(
     noise_size=100,
     batch_size=0
 )
-aGAN.restore(compile=False)
-aGAN.generate_image('test')
-#aGAN.generate_animation('test', 60*5)
+aGAN.restore()
+#aGAN.generate_image('test')
+aGAN.generate_animation('test', 60*20, 20)

@@ -39,33 +39,36 @@ class AGAN:
         generator.add(layers.Conv2DTranspose(3, (5,5), strides=(2,2), padding='same', use_bias=False, activation='tanh'))
 
         discriminator = keras.Sequential()
+        discriminator.add(layers.Dropout(0.1))
         discriminator.add(layers.Conv2D(16, (2,2), strides=(2,2), padding='same', input_shape=(100,100,3)))
         discriminator.add(layers.LeakyReLU())
-        discriminator.add(layers.Dropout(0.1))
         discriminator.add(layers.Conv2D(32, (2,2), strides=(2,2), padding='same'))
         discriminator.add(layers.LeakyReLU())
-        discriminator.add(layers.Dropout(0.05))
         discriminator.add(layers.Conv2D(64, (2,2), strides=(2,2), padding='same'))
         discriminator.add(layers.LeakyReLU())
         discriminator.add(layers.Conv2D(128, (2,2), strides=(2,2), padding='same'))
         discriminator.add(layers.LeakyReLU())
         discriminator.add(layers.Flatten())
-        discriminator.add(layers.Dense(16))
-        discriminator.add(layers.Dense(32, activation='relu'))
-        discriminator.add(layers.Dense(16,  activation='relu'))
+        discriminator.add(layers.Dense(32))
+        discriminator.add(layers.Dense(16, activation='relu'))
+        discriminator.add(layers.Dense(8,  activation='relu'))
         discriminator.add(layers.Dense(1))
 
         self.optimizer_D = keras.optimizers.Adam(1e-4)
         self.optimizer_G = keras.optimizers.Adam(1e-4)
 
+        self.restored = False
+
         self.initialize(generator, discriminator)
 
-    def restore(self, compile=True):
-        generator = keras.models.load_model('Generator', compile=compile)
+    def restore(self):
+        generator = keras.models.load_model('Generator', compile=False)
         self.optimizer_G = generator.optimizer
 
-        discriminator = keras.models.load_model('Discriminator', compile=compile)
+        discriminator = keras.models.load_model('Discriminator', compile=False)
         self.optimizer_D = discriminator.optimizer
+
+        self.restored = True
 
         self.initialize(generator, discriminator)
 
@@ -93,18 +96,44 @@ class AGAN:
         generated = self.G(tf.random.normal([1, self.noise_size]), training=False)
         to_image(generated).save(name + '.jpg')
 
-    def generate_animation(self, name, frames):
-        noise_shape = [1, self.noise_size]
-        random = tf.random.normal(noise_shape)
+    def generate_animation(self, name, frames, samples):
+        noise = tf.random.normal([samples, 100])
+        interpolated = tf.zeros([0, 100])
+        frames_per_sample = frames//samples
 
-        for i in range(frames):
-            random = tf.concat([random, [random[-1] + tf.random.normal([self.noise_size], mean=0.05*np.sin(2*i/frames), stddev=0.05)]], 0)
+        for i in range(samples - 1):
+             start_vec = noise[i]
+             end_vec = noise[i + 1]
+             dz = (end_vec - start_vec)/frames_per_sample
 
-        generated_frames = self.G(random, training=False)
+             for j in range(frames_per_sample):
+                 interpolated = tf.concat([interpolated, [start_vec + j*dz]], 0)
+
+        generated_frames = self.G(interpolated, training=False)
         to_video(generated_frames, name)
+
+    def get_offset(self, example_interval):
+        if self.restored:
+            filenames = os.listdir('examples/')
+
+            if len(filenames) > 0:
+                last = filenames[-1].split('.png')[0].split('epoch')[-1]
+                return int(last) + example_interval
+            else:
+                return 0
+        else:
+            return 0
 
     def noise(self):
         return tf.random.normal([self.batch_size, self.noise_size])
+
+    # Loss from image being noisy (high-frequency "jumps")
+    def denoise_loss(self, images, shift):
+        # Get how much the image varies due to pixels shifted horizontally and vertically
+        x_var = images[:,:,shift:,:] - images[:,:,:-shift,:]
+        y_var = images[:,shift:,:,:] - images[:,:-shift,:,:]
+
+        return tf.reduce_sum(tf.abs(x_var)) + tf.reduce_sum(tf.abs(y_var))
 
     def loss_D(self, real, fake):
         real_loss = self.bce(tf.ones_like(real), real)
@@ -115,7 +144,9 @@ class AGAN:
     def loss_G(self, fake):
         return self.bce(tf.ones_like(fake), fake)
 
-    def train(self, dataset, epochs, example_interval, save_interval, example_offset=0):
+    def train(self, dataset, epochs, example_interval, save_interval):
+        example_offset = self.get_offset(example_interval)
+
         for epoch in range(epochs):
             start = time.time()
 

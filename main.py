@@ -25,8 +25,7 @@ try:
         dataset=training_data,
         epochs=4000,
         example_interval=5,
-        save_interval=50,
-        example_offset=6815
+        save_interval=50
     )
 except KeyboardInterrupt:
     try:
