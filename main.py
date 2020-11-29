@@ -23,7 +23,7 @@ aGAN.restore()
 try:
     aGAN.train(
         dataset=training_data,
-        epochs=4000,
+        epochs=12000,
         example_interval=5,
         save_interval=50
     )

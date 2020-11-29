@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import cv2
+import os
 from PIL import Image
 
 def to_array(path):
@@ -56,10 +57,11 @@ def to_video(tensors, name):
     for i in range(len(tensors)):
         tensor = tensors[i]
         path = './frames/' + name + str(i) + '.png'
-
         to_image(tensor).save(path)
-        frame = cv2.imread(path)
 
+        frame = cv2.imread(path)
         out.write(frame)
+
+        os.remove(path)
 
     out.release()

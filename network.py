@@ -16,6 +16,8 @@ class AGAN:
         self.noise_size = noise_size
 
     def initialize(self, generator, discriminator):
+        generator.optimizer = keras.optimizers.Adam(1e-4)
+        discriminator.optimizer = keras.optimizers.Adam(1e-4)
         self.G = generator
         self.D = discriminator
 
@@ -39,9 +41,9 @@ class AGAN:
         generator.add(layers.Conv2DTranspose(3, (5,5), strides=(2,2), padding='same', use_bias=False, activation='tanh'))
 
         discriminator = keras.Sequential()
-        discriminator.add(layers.Dropout(0.1))
         discriminator.add(layers.Conv2D(16, (2,2), strides=(2,2), padding='same', input_shape=(100,100,3)))
         discriminator.add(layers.LeakyReLU())
+        discriminator.add(layers.Dropout(0.05))
         discriminator.add(layers.Conv2D(32, (2,2), strides=(2,2), padding='same'))
         discriminator.add(layers.LeakyReLU())
         discriminator.add(layers.Conv2D(64, (2,2), strides=(2,2), padding='same'))
@@ -54,29 +56,20 @@ class AGAN:
         discriminator.add(layers.Dense(8,  activation='relu'))
         discriminator.add(layers.Dense(1))
 
-        self.optimizer_D = keras.optimizers.Adam(1e-4)
-        self.optimizer_G = keras.optimizers.Adam(1e-4)
-
         self.restored = False
 
         self.initialize(generator, discriminator)
 
     def restore(self):
         generator = keras.models.load_model('Generator', compile=False)
-        self.optimizer_G = generator.optimizer
-
         discriminator = keras.models.load_model('Discriminator', compile=False)
-        self.optimizer_D = discriminator.optimizer
 
         self.restored = True
 
         self.initialize(generator, discriminator)
 
     def save(self):
-        self.G.optimizer = self.optimizer_G
         self.G.save('Generator')
-
-        self.D.optimizer = self.optimizer_D
         self.D.save('Discriminator')
 
     def generate_examples(self, name):
@@ -98,7 +91,7 @@ class AGAN:
 
     def generate_animation(self, name, frames, samples):
         noise = tf.random.normal([samples, 100])
-        interpolated = tf.zeros([0, 100])
+        interpolated = tf.zeros([0,100])
         frames_per_sample = frames//samples
 
         for i in range(samples - 1):
@@ -112,13 +105,13 @@ class AGAN:
         generated_frames = self.G(interpolated, training=False)
         to_video(generated_frames, name)
 
-    def get_offset(self, example_interval):
+    def get_offset(self):
         if self.restored:
             filenames = os.listdir('examples/')
 
             if len(filenames) > 0:
-                last = filenames[-1].split('.png')[0].split('epoch')[-1]
-                return int(last) + example_interval
+                last = max(*[int(name.split('.png')[0].split('epoch')[-1]) for name in filenames])
+                return last
             else:
                 return 0
         else:
@@ -145,7 +138,7 @@ class AGAN:
         return self.bce(tf.ones_like(fake), fake)
 
     def train(self, dataset, epochs, example_interval, save_interval):
-        example_offset = self.get_offset(example_interval)
+        example_offset = self.get_offset()
 
         for epoch in range(epochs):
             start = time.time()
@@ -176,5 +169,5 @@ class AGAN:
         gradients_G = tape_G.gradient(loss_G, self.G.trainable_variables)
         gradients_D = tape_D.gradient(loss_D, self.D.trainable_variables)
 
-        self.optimizer_G.apply_gradients(zip(gradients_G, self.G.trainable_variables))
-        self.optimizer_D.apply_gradients(zip(gradients_D, self.D.trainable_variables))
+        self.G.optimizer.apply_gradients(zip(gradients_G, self.G.trainable_variables))
+        self.D.optimizer.apply_gradients(zip(gradients_D, self.D.trainable_variables))

@@ -59,7 +59,6 @@ async function scrapeGenre(genre){
             break;
         }
 
-        console.log(j);
         j++;
     }
 
@@ -87,7 +86,7 @@ async function scrapeGenre(genre){
 // Get data from the abstract art section
 const url = 'https://www.wikiart.org/en/paintings-by-genre/abstract?select=featured#!#filterName:featured,viewType:masonry';
 
-const nightmare = Nightmare();
+const nightmare = Nightmare({show: true});
 const genre = nightmare.goto(url);
 
 const start = new Date().getTime();
