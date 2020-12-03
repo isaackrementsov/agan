@@ -4,9 +4,14 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
+import threading
 
 from network import AGAN
 from utils import to_array, split
+from web.app import app
+
+web_app = threading.Thread(target=app.run)
+web_app.start()
 
 BATCH_SIZE = 90
 
@@ -34,4 +39,5 @@ except KeyboardInterrupt:
     except KeyboardInterrupt:
         print('Failed to save model because the program was force-stopped')
     finally:
+        web_app.join()
         quit()

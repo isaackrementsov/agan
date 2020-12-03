@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>aGAN Progress Monitoring</title>
+        <link rel="preconnect" href="https://fonts.gstatic.com">
+        <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;700&display=swap" rel="stylesheet">
+        <style>
+            html, body {
+                font-family: 'Open Sans', Helvetica, sans-serif;
+            }
+            .flex-body {
+                display: flex;
+                flex-wrap: wrap;
+                margin: 0 auto;
+                justify-content: center;
+            }
+            .gallery-img {
+                display: flex;
+                flex-direction: column;
+                padding: 10px 15px;
+                margin: 10px;
+                border: 1px solid black;
+                border-radius: 3px;
+                cursor: pointer;
+            }
+            .gallery-img:hover {
+                box-shadow: 0 0px 8px 0 rgba(0,0,0,0.2);
+                transition: 0.2s ease-in-out;
+            }
+            .gallery-img p {
+                font-weight: 300;
+                padding: 0;
+                margin: 0;
+                margin-bottom: 10px;
+                text-align: center;
+            }
+            h1 {
+                font-weight: 700;
+            }
+            .gallery-img img {
+                height: 150px;
+            }
+
+            .hidden-img {
+                z-index: 3;
+                position: fixed;
+                height: 100%;
+                width: 100%;
+                background-color: rgba(100,100,100,0.5);
+                top: 0;
+            }
+            .hidden-img img {
+                padding: 10vh 25vw;
+                width: 50vw;
+                max-height: 50vw;
+                margin: 0 auto;
+            }
+
+            .close {
+                right: 0;
+                position: absolute;
+                border: 1px solid white;
+                border-radius: 3px;
+                background-color: transparent;
+                color: white;
+                padding: 4px 7px;
+                margin: 5px;
+            }
+            .close span {
+                font-weight: 300;
+            }
+        </style>
+    </head>
+    <body>
+        <h1 style="width: 100%; text-align: center;">Current Training Progress</h1>
+        <div class="flex-body">
+            {% for img in imgs %}
+                <div class="gallery-img" onclick="popout('{{ img }}')">
+                    <img src="/{{ img }}"/>
+                    <p>{{ img[0].capitalize() + img[1:] }}</p>
+                </div>
+                <div class="hidden-img" style="display: none" id="{{ img }}">
+                    <button class="close" onclick="popout('{{ img }}')"><span>X</span></button>
+                    <img src="/{{ img }}">
+                </div>
+            {% endfor %}
+        </div>
+    </body>
+    <script>
+        function popout(id){
+            const elem = document.getElementById(id);
+            const currentDisplay = elem.style.display;
+            elem.style.display = currentDisplay == 'none' ? 'block' : 'none';
+        }
+    </script>
+</html>
