@@ -56,6 +56,26 @@ class AGAN:
         discriminator.add(layers.Dense(8,  activation='relu'))
         discriminator.add(layers.Dense(1))
 
+        '''
+        physical_data = layers.Input(shape=(self.physical_data_size,))
+        noise = layers.Input(shape=(self.noise_size,))
+
+        gdense1 = layers.Dense(25*25*180, use_bias=False)(noise)
+        gbn1 = layers.BatchNormalization()(gdense1)
+        glr1 = layers.LeakyReLU()(gbn1)
+        gr = layers.Reshape((25,25,180))(glr1)
+        gct1 = layers.Conv2DTranspose(128, (5,5), strides=(1,1), padding='same', use_bias=False)(gr)
+        gbn2 = layers.BatchNormalization()(gct1)
+        glr2 = layers.LeakyReLU()(gbn2)
+        gct2 = layers.Conv2DTranspose(64, (5,5), strides=(1,1), padding='same', use_bias=False)(glr2)
+        gbn2 = layers.BatchNormalization()(gct2)
+        glr2 = layers.LeakyReLU()(gbn2)
+        gct3 = layers.Conv2DTranspose(32, (5,5), strides=(2,2), padding='same', use_bias=False)(glr2)
+        gbn3 = layers.BatchNormalization()(gct3)
+        glr3 = layers.LeakyReLU()(gbn3)
+        gct4 = layers.Conv2DTranspose(3, (5,5), strides=(2,2), padding='same', use_bias=False, activation='tanh')(glr3)
+        '''
+
         self.restored = False
 
         self.initialize(generator, discriminator)
