@@ -5,7 +5,7 @@ app = Flask(__name__, static_url_path='', static_folder='../examples')
 
 @app.route('/', methods=['GET'])
 def showProgress():
-    paths = os.listdir('./examples')
+    paths = os.listdir('../examples')
 
     def epoch_no(e):
         return -int(e.split('.png')[0].split('epoch')[-1])
@@ -13,3 +13,6 @@ def showProgress():
     paths.sort(key=epoch_no)
 
     return render_template('index.html', imgs=paths)
+
+if __name__ == '__main__':
+    app.run(host='127.0.0.1', port=5000, debug=False)

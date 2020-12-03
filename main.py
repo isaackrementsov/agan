@@ -7,20 +7,16 @@ from tensorflow import keras
 import threading
 
 from network import AGAN
-from utils import to_array, split
-from web.app import app
+from utils import to_array, gen_batches
 
-web_app = threading.Thread(target=app.run)
-web_app.start()
+BATCH_SIZE = 25
 
-BATCH_SIZE = 90
-
-train_images = [to_array(img) for img in os.listdir('assets/')]
-training_data = split(BATCH_SIZE, train_images)
+paths = os.listdir('assets/')
+training_data = gen_batches(paths, BATCH_SIZE)
 print('Done preparing training data')
 
 aGAN = AGAN(
-    noise_size=100,
+    noise_size=200,
     batch_size=BATCH_SIZE
 )
 aGAN.restore()
@@ -30,14 +26,16 @@ try:
         dataset=training_data,
         epochs=12000,
         example_interval=5,
-        save_interval=50
+        save_interval=100
     )
 except KeyboardInterrupt:
     try:
         print('Saving...')
         aGAN.save()
+
+        print('Clearing session...')
+        keras.backend.clear_session()
     except KeyboardInterrupt:
         print('Failed to save model because the program was force-stopped')
     finally:
-        web_app.join()
         quit()

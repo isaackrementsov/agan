@@ -14,21 +14,23 @@ def to_array(path):
     except Exception as e:
         print(path, e)
 
-def split(batch_size, array):
+def gen_batches(paths, batch_size):
     split_array = []
-    section = []
+    section = tf.convert_to_tensor([to_array(paths[0])])
     i = 0
 
-    for elem in array:
-        i += 1
-        section.append(elem)
+    for path in paths:
+        img_tensor = to_array(path)
+        if img_tensor is not None:
+            if i == batch_size - 1:
+                split_array.append(section)
+                section = tf.convert_to_tensor([img_tensor])
+                i = 0
+            else:
+                i += 1
+                section = tf.concat([section, [img_tensor]], axis=0)
 
-        if i == batch_size:
-            split_array.append(section)
-            section = []
-            i = 0
-
-    return tf.convert_to_tensor(split_array)
+    return split_array
 
 # Go from tensor output back to image
 def to_image(tensor):

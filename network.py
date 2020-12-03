@@ -32,16 +32,16 @@ class AGAN:
         generator.add(layers.Conv2DTranspose(128, (5,5), strides=(1,1), padding='same', use_bias=False))
         generator.add(layers.BatchNormalization())
         generator.add(layers.LeakyReLU())
-        generator.add(layers.Conv2DTranspose(64, (5,5), strides=(1,1), padding='same', use_bias=False))
+        generator.add(layers.Conv2DTranspose(64, (5,5), strides=(3,3), padding='same', use_bias=False))
         generator.add(layers.BatchNormalization())
         generator.add(layers.LeakyReLU())
-        generator.add(layers.Conv2DTranspose(32, (5,5), strides=(2,2), padding='same', use_bias=False))
+        generator.add(layers.Conv2DTranspose(32, (5,5), strides=(3,3), padding='same', use_bias=False))
         generator.add(layers.BatchNormalization())
         generator.add(layers.LeakyReLU())
         generator.add(layers.Conv2DTranspose(3, (5,5), strides=(2,2), padding='same', use_bias=False, activation='tanh'))
 
         discriminator = keras.Sequential()
-        discriminator.add(layers.Conv2D(16, (2,2), strides=(2,2), padding='same', input_shape=(100,100,3)))
+        discriminator.add(layers.Conv2D(16, (2,2), strides=(2,2), padding='same', input_shape=(450,450,3)))
         discriminator.add(layers.LeakyReLU())
         discriminator.add(layers.Dropout(0.05))
         discriminator.add(layers.Conv2D(32, (2,2), strides=(2,2), padding='same'))
@@ -95,7 +95,7 @@ class AGAN:
     def generate_examples(self, name):
         generated = self.G(tf.random.normal([16, self.noise_size]), training=False)
 
-        fig = plt.figure(figsize=(4,4))
+        fig = plt.figure(figsize=(16,16))
 
         for i in range(generated.shape[0]):
             plt.subplot(4, 4, i + 1)
@@ -130,7 +130,8 @@ class AGAN:
             filenames = os.listdir('examples/')
 
             if len(filenames) > 0:
-                last = max(*[int(name.split('.png')[0].split('epoch')[-1]) for name in filenames])
+                numbers = [int(name.split('.png')[0].split('epoch')[-1]) for name in filenames]
+                last = max(numbers)
                 return last
             else:
                 return 0

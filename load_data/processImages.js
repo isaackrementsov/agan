@@ -10,7 +10,7 @@ fs.readdir(raw, (err, files) => {
     if(err){
         console.log(err);
     }else{
-        let dim = 100;
+        let dim = 450;
 
         for(let file of files){
             sharp(path.join(raw, file)).resize(dim, dim).toFile(path.join(assets, file));

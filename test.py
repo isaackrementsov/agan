@@ -5,9 +5,9 @@ import tensorflow as tf
 from network import AGAN
 
 aGAN = AGAN(
-    noise_size=100,
+    noise_size=200,
     batch_size=0
 )
 aGAN.restore()
-#aGAN.generate_image('test')
-aGAN.generate_animation('test', 60*20, 20)
+aGAN.generate_image('test')
+#aGAN.generate_animation('test', 60*20, 20)
