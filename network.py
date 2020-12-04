@@ -16,8 +16,8 @@ class AGAN:
         self.noise_size = noise_size
 
     def initialize(self, generator, discriminator):
-        generator.optimizer = keras.optimizers.Adam(1e-4)
-        discriminator.optimizer = keras.optimizers.Adam(1e-4)
+        generator.optimizer = keras.optimizers.Adam(1e-4, beta_1=0.5)
+        discriminator.optimizer = keras.optimizers.Adam(1e-4, beta_1=0.5)
         self.G = generator
         self.D = discriminator
 
@@ -25,24 +25,18 @@ class AGAN:
 
     def new(self):
         generator = keras.Sequential()
-        generator.add(layers.Dense(256, input_shape=(self.noise_size,), use_bias=False))
-        generator.add(layers.Dense(512))
-        generator.add(layers.Dense(25*25*180))
+        generator.add(layers.Dense(25*25*180, input_shape=(self.noise_size,), use_bias=False))
         generator.add(layers.BatchNormalization())
         generator.add(layers.LeakyReLU())
         generator.add(layers.Reshape((25,25,180)))
-        generator.add(layers.Conv2DTranspose(128, (5,5), strides=(1,1), padding='same', use_bias=False))
+        generator.add(layers.Conv2DTranspose(128, (5,5), strides=(1,1), padding='same', use_bias=False, activation='relu'))
         generator.add(layers.BatchNormalization())
-        generator.add(layers.LeakyReLU())
-        generator.add(layers.Conv2DTranspose(64, (5,5), strides=(1,1), padding='same', use_bias=False))
+        generator.add(layers.Conv2DTranspose(64, (5,5), strides=(1,1), padding='same', use_bias=False, activation='relu'))
         generator.add(layers.BatchNormalization())
-        generator.add(layers.LeakyReLU())
-        generator.add(layers.Conv2DTranspose(32, (5,5), strides=(3,3), padding='same', use_bias=False))
+        generator.add(layers.Conv2DTranspose(32, (5,5), strides=(3,3), padding='same', use_bias=False, activation='relu'))
         generator.add(layers.BatchNormalization())
-        generator.add(layers.LeakyReLU())
-        generator.add(layers.Conv2DTranspose(16, (5,5), strides=(3,3), padding='same', use_bias=False))
+        generator.add(layers.Conv2DTranspose(16, (5,5), strides=(3,3), padding='same', use_bias=False, activation='relu'))
         generator.add(layers.BatchNormalization())
-        generator.add(layers.LeakyReLU())
         generator.add(layers.Conv2DTranspose(3, (5,5), strides=(2,2), padding='same', use_bias=False, activation='tanh'))
 
         discriminator = keras.Sequential()
@@ -57,8 +51,11 @@ class AGAN:
         discriminator.add(layers.LeakyReLU())
         discriminator.add(layers.Flatten())
         discriminator.add(layers.Dense(32))
-        discriminator.add(layers.Dense(16, activation='relu'))
-        discriminator.add(layers.Dense(8,  activation='relu'))
+        discriminator.add(layers.LeakyReLU())
+        discriminator.add(layers.Dense(16))
+        discriminator.add(layers.LeakyReLU())
+        discriminator.add(layers.Dense(8))
+        discriminator.add(layers.LeakyReLU())
         discriminator.add(layers.Dense(1))
 
         '''
@@ -169,8 +166,9 @@ class AGAN:
         for epoch in range(epochs):
             start = time.time()
 
-            for image_batch in dataset:
-                self.train_step(image_batch)
+            for i in range(len(dataset)):
+                last = i == len(dataset) - 1
+                self.train_step(dataset[i], last)
 
             if (epoch + 1) % example_interval == 0 or epoch == 0:
                 self.generate_examples('epoch' + str(epoch + example_offset + 1))
@@ -181,7 +179,7 @@ class AGAN:
             print('Epoch #{} took {} seconds'.format(epoch + 1, time.time() - start))
 
     @tf.function
-    def train_step(self, images):
+    def train_step(self, images, last):
         noise = self.noise()
 
         with tf.GradientTape() as tape_G, tf.GradientTape() as tape_D:
@@ -191,6 +189,9 @@ class AGAN:
 
             loss_G = self.loss_G(fake)
             loss_D = self.loss_D(real, fake)
+
+            print('Generator loss:', tf.print(loss_G, output_stream=sys.stdout))
+            print('Discriminator loss:', tf.print(loss_D, output_stream=sys.stdout))
 
         gradients_G = tape_G.gradient(loss_G, self.G.trainable_variables)
         gradients_D = tape_D.gradient(loss_D, self.D.trainable_variables)
