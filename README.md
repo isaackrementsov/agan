@@ -1,7 +1,7 @@
 ## aGAN
 GAN to create abstract art
 ![demo](./test.avi)
-![demo](./test.jpg)
+![demo](./out.jpg)
 #### Install dependencies
 
 ```bash
