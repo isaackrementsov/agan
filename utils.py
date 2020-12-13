@@ -2,6 +2,7 @@ import tensorflow as tf
 import numpy as np
 import cv2
 import os
+import imageio
 from PIL import Image
 
 def to_array(path):
@@ -49,21 +50,25 @@ def to_image(tensor):
     # Initialize PIL Image using modified tensor
     return Image.fromarray(tensor)
 
-def to_video(tensors, name):
-    # Rescale from -1-1 to 0-255
-    height, width, layers = tensors[0].shape
-    size = (height, width)
-
-    out = cv2.VideoWriter('./' + name + '.avi', cv2.VideoWriter_fourcc(*'DIVX'), 60, size)
-
+def to_frames(tensors, offset):
     for i in range(len(tensors)):
         tensor = tensors[i]
-        path = './frames/' + name + str(i) + '.png'
+
+        path = './frames/frame' + str(i + offset) + '.png'
         to_image(tensor).save(path)
 
-        frame = cv2.imread(path)
-        out.write(frame)
+def to_video(name):
+    frames = os.listdir('frames/')
 
-        os.remove(path)
+    def end_no(e):
+        return int(e.split('.png')[0].split('frame')[-1])
 
-    out.release()
+    frames.sort(key=end_no)
+
+    with imageio.get_writer('./' + name + '.gif', mode='I', duration=1/60) as writer:
+        for path in frames:
+            full_path = './frames/' + path
+            image = imageio.imread(full_path)
+
+            writer.append_data(image)
+            os.remove(full_path)
