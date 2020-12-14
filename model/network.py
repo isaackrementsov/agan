@@ -35,9 +35,9 @@ class AGAN:
     def new(self):
         print('Creating a new model...')
 
-        style_mapper = StyleMapper()
-        generator = Generator(self.resolution, self.batch_size)
-        discriminator = Discriminator(self.resolution)
+        style_mapper = StyleMapper(w_length=512)
+        generator = Generator(self.resolution, self.batch_size, w_length=512, depth=12)
+        discriminator = Discriminator(self.resolution, depth=12)
 
         self.restored = False
 
@@ -165,7 +165,7 @@ class AGAN:
         return K.mean(real_loss + generated_loss)
 
     def loss_G(self, fake):
-        return K.mean(fake)
+        return K.relu(K.mean(fake))
 
     def loss_PL(self):
         return 0
