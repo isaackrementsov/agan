@@ -2,6 +2,7 @@
 /assets
 /examples
 /frames
+/metrics
 /examples_old
 /examples_old2
 /checkpoints
@@ -10,3 +11,6 @@
 /load_data/package-lock.json
 /Generator
 /Discriminator
+/__pycache__
+/web/__pycache__
+/model/__pycache__
