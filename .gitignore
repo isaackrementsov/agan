@@ -10,3 +10,6 @@
 /load_data/package-lock.json
 /Generator
 /Discriminator
+/__pycache__
+/web/__pycache__
+/models/__pycache
