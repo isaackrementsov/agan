@@ -53,11 +53,9 @@ class ModulatedConv2D(layers.Layer):
         self.built = True
 
     def call(self, inputs):
-        # Inputs = [last Conv2D layer output, style vector]
-        # Make the input channels axis 1
-        x = tf.transpose(inputs[0], [0, 3, 1, 2])
-        # Expand style vector for use with (3,3,input_maps,output_maps) kernel weights
-        w = K.expand_dims(K.expand_dims(K.expand_dims(inputs[1], axis=1), axis=1), axis=-1)
+        # NCHW => NHWC (Recommended)
+        # Expand style vector to shape (batch, 1, 1, w_length, 1)
+        w = K.expand_dims(K.expand_dims(K.expand_dims(inputs[1], 1), 1), -1)
 
         # Add batch dimension to initial kernel weights
         weights = K.expand_dims(self.kernel, axis = 0)
@@ -69,22 +67,20 @@ class ModulatedConv2D(layers.Layer):
             # Get L2 norm of output weights (and prevent division by zero)
             norm = K.sqrt(K.sum(K.square(weights), axis=[1,2,3], keepdims=True) + self.epsilon)
             # Normalize weights
-            weights = weights/norm
+            weights /= norm
 
         x_shape = K.shape(x)
-        # Fuse inputs to be the feature map of a single instance
-        x = K.reshape(x, [1, -1, x_shape[2], x_shape[3]])
+        # Fuse input batches into channel dimension
+        x = K.reshape(x, [1, x_shape[1], x_shape[2], -1])
         # Fuse kernels to be in a single layer weight-style instance
-        w = tf.reshape(tf.transpose(weights, [1,2,3,0,4]), [weights.shape[1], weights.shape[2], weights.shape[3], -1])
+        weights = tf.reshape(tf.transpose(weights, [1,2,3,0,4]), [weights.shape[1], weights.shape[2], weights.shape[3], -1])
 
         # Perform 3x3 convolution with styled kernels
-        x = tf.nn.conv2d(x, w, strides=self.strides, padding='SAME', data_format='NCHW')
+        x = tf.nn.conv2d(x, weights, strides=self.strides, padding='SAME', data_format='NHWC')
 
-        # Separate output back into batches
+        # Separate output channels back into batches
         x_shape = K.shape(x)
-        x = K.reshape(x, [-1, self.filters, x_shape[2], x_shape[3]])
-        # Make channels the last axis again
-        x = tf.transpose(x, [0,2,3,1])
+        x = K.reshape(x, [-1, x_shape[2], x_shape[3], self.filters])
 
         return x
 
