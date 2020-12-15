@@ -11,7 +11,7 @@ import keras.backend as K
 class ModulatedConv2D(layers.Layer):
 
     def __init__(self, filters, kernel_size,
-                strides=1, padding='valid', dilation_rate=1,
+                strides=1, padding='valid', dilation_rate=(1,1),
                 kernel_initializer='glorot_uniform', kernel_regularizer=None,
                 activity_regularizer=None, kernel_constraint=None,
                 demod=True, **kwargs):
@@ -20,10 +20,10 @@ class ModulatedConv2D(layers.Layer):
 
         self.filters = filters
         self.rank = 2
-        self.kernel_size = conv_utils.normalize_tuple(kernel_size, 2, 'kernel_size')
-        self.strides = conv_utils.normalize_tuple(strides, 2, 'strides')
-        self.padding = conv_utils.normalize_padding(padding)
-        self.dilation_rate = conv_utils.normalize_tuple(dilation_rate, 2, 'dilation_rate')
+        self.kernel_size = kernel_size
+        self.strides = strides
+        self.padding = padding
+        self.dilation_rate = dilation_rate
         self.kernel_initializer = initializers.get(kernel_initializer)
         self.kernel_regularizer = regularizers.get(kernel_regularizer)
         self.kernel_constraint = constraints.get(kernel_constraint)
@@ -50,22 +50,23 @@ class ModulatedConv2D(layers.Layer):
             regularizer=self.kernel_regularizer,
             constraint=self.kernel_constraint
         )
+        self.built = True
 
     def call(self, inputs):
         # Inputs = [last Conv2D layer output, style vector]
-        # Make the input channels the first axis
+        # Make the input channels axis 1
         x = tf.transpose(inputs[0], [0, 3, 1, 2])
         # Expand style vector for use with (3,3,input_maps,output_maps) kernel weights
         w = K.expand_dims(K.expand_dims(K.expand_dims(inputs[1], axis=1), axis=1), axis=-1)
 
-        # Add minibatch dimension to initial kernel weights => (1,3,3,input_maps,output_maps)
-        wo = K.expand_dims(self.kernel, axis = 0)
+        # Add batch dimension to initial kernel weights
+        weights = K.expand_dims(self.kernel, axis = 0)
         # Modulate kernel weights
-        weights = wo*(w + 1)
+        weights *= (w + 1)
 
         # Demodulate kernel weights
         if self.demod:
-            # Get L2 norm of output weights
+            # Get L2 norm of output weights (and prevent division by zero)
             norm = K.sqrt(K.sum(K.square(weights), axis=[1,2,3], keepdims=True) + self.epsilon)
             # Normalize weights
             weights = weights/norm
@@ -73,13 +74,13 @@ class ModulatedConv2D(layers.Layer):
         x_shape = K.shape(x)
         # Fuse inputs to be the feature map of a single instance
         x = K.reshape(x, [1, -1, x_shape[2], x_shape[3]])
-        # Fuse kernels to be in a single layer weight instant
+        # Fuse kernels to be in a single layer weight-style instance
         w = tf.reshape(tf.transpose(weights, [1,2,3,0,4]), [weights.shape[1], weights.shape[2], weights.shape[3], -1])
 
-        # Perform 3x3 convolution
+        # Perform 3x3 convolution with styled kernels
         x = tf.nn.conv2d(x, w, strides=self.strides, padding='SAME', data_format='NCHW')
 
-        # Separate output back into minibatch
+        # Separate output back into batches
         x_shape = K.shape(x)
         x = K.reshape(x, [-1, self.filters, x_shape[2], x_shape[3]])
         # Make channels the last axis again
@@ -182,7 +183,7 @@ class Generator:
         scale = self.max_size//size
         vs = initializers.VarianceScaling(200/size)
 
-        x = self.mod_conv2d(3, 1, kernel_initializer=vs, demod=False)([x,w])
+        x = self.mod_conv2d(3, (1,1), kernel_initializer=vs, demod=False)([x,w])
         x = self.upsample((scale, scale))(x)
 
         return x
@@ -193,7 +194,7 @@ class Generator:
 
         return inputs[0][:, :h, :w, :]
 
-    def mod_conv2d(self, filters, kernel_size=3, kernel_initializer='glorot_uniform', demod=True):
+    def mod_conv2d(self, filters, kernel_size=(3,3), kernel_initializer='he_uniform', demod=True):
         return ModulatedConv2D(filters, kernel_size, kernel_initializer=kernel_initializer, demod=demod)
 
     def upsample(self, size):

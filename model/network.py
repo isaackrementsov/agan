@@ -20,7 +20,7 @@ class AGAN:
         self.batch_size = batch_size
         self.resolution = resolution
         self.mix_prob = mix_prob
-        
+
     def initialize(self, style_mapper, generator, discriminator):
         style_mapper.model.optimizer = keras.optimizers.Adam(1e-4, beta_1=0.5)
         generator.model.optimizer = keras.optimizers.Adam(1e-4, beta_1=0.5)
@@ -63,11 +63,11 @@ class AGAN:
         self.G.save()
         self.S.save()
         self.D.save()
-        
+
     def generate_examples(self, name):
         styles, noise = self.get_generator_inputs(self.batch_size)
         generated = self.G([styles, noise])
-        
+
         fig = plt.figure(figsize=(16,16))
 
         for i in range(min(16, generated.shape[0])):
@@ -127,7 +127,7 @@ class AGAN:
     def get_generator_inputs(self, batches):
         n_blocks = self.G.n_style_blocks + 1
         z = lambda: tf.random.normal([batches, self.S.latent_size])
-        
+
         if random() >= self.mix_prob:
             print('mix')
             d = int(random()*n_blocks)
@@ -138,7 +138,7 @@ class AGAN:
         else:
             print('not mixed')
             z_points = [z()]*n_blocks
-        
+
         return self.custom_generator_inputs(batches, z_points)
 
     def custom_generator_inputs(self, batches, latent_points):
@@ -169,7 +169,7 @@ class AGAN:
 
     def loss_PL(self):
         return 0
-    
+
     def train(self, dataset, epochs, example_interval, save_interval):
         example_offset = self.get_offset()
 
