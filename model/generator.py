@@ -1,3 +1,4 @@
+# StyleGAN2 Features written using Matchue's tutorial - https://www.youtube.com/channel/UCxBlj282mOVF2pndNPmu71w, https://github.com/manicman1999
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
@@ -124,7 +125,7 @@ class ModulatedConv2D(layers.Layer):
 # Style mapping network
 class StyleMapper:
 
-    def __init__(self, restore=False, w_length=256, latent_size=256):
+    def __init__(self, restore=False, w_length=512, latent_size=512):
         self.w_length = w_length
         self.latent_size = latent_size
 
@@ -165,12 +166,12 @@ class StyleMapper:
 # Generator ("synthesis") network
 class Generator:
 
-    def __init__(self, max_size, batch_size, restore=False, w_length=256, upsample_size=2, depth=3):
+    def __init__(self, max_size, batch_size, restore=False, w_length=512, upsample_size=2, depth=3):
         self.max_size = max_size
         self.w_length = w_length
         self.upsample_size = upsample_size
         self.depth = depth
-        self.seed = tf.ones([batch_size, depth*4**3])
+        self.seed = tf.ones([batch_size, w_length])
 
         if restore:
             self.model = self.restore()
@@ -239,7 +240,7 @@ class Generator:
         # Style vectors
         w = [keras.Input([self.w_length]) for i in range(self.n_style_blocks + 1)]
         # Constant "seed" vector for generator
-        c = keras.Input([self.depth*4**3])
+        c = keras.Input([self.w_length])
         # Random noise vectors
         b = keras.Input([self.max_size,self.max_size,1])
 
