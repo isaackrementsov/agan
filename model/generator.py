@@ -53,7 +53,7 @@ class ModulatedConv2D(layers.Layer):
         self.built = True
 
     def call(self, inputs):
-        # NCHW => NHWC (Recommended)
+        x = inputs[0]
         # Expand style vector to shape (batch, 1, 1, w_length, 1)
         w = K.expand_dims(K.expand_dims(K.expand_dims(inputs[1], 1), 1), -1)
 
@@ -80,7 +80,7 @@ class ModulatedConv2D(layers.Layer):
 
         # Separate output channels back into batches
         x_shape = K.shape(x)
-        x = K.reshape(x, [-1, x_shape[2], x_shape[3], self.filters])
+        x = K.reshape(x, [-1, x_shape[1], x_shape[2], self.filters])
 
         return x
 
