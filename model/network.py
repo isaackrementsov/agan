@@ -11,7 +11,7 @@ from tensorflow import keras
 from keras import layers
 
 from model.discriminator import Discriminator
-from model.generator import Generator, StyleMapper
+from model.generator import Generator
 from utils import to_image, to_video, to_frames
 
 class AGAN:
@@ -21,33 +21,26 @@ class AGAN:
         self.resolution = resolution
         self.mix_prob = mix_prob
 
-    def initialize(self, style_mapper, generator, discriminator):
-        style_mapper.model.optimizer = keras.optimizers.Adam(1e-4, beta_1=0.5)
-        generator.model.optimizer = keras.optimizers.Adam(1e-4, beta_1=0.5)
-        discriminator.model.optimizer = keras.optimizers.Adam(1e-4, beta_1=0.5)
-
-        self.S = style_mapper
+    def initialize(self, generator, discriminator):
         self.G = generator
         self.D = discriminator
 
-        self.bce = keras.losses.BinaryCrossentropy(from_logits=True)
-
     def new(self):
         print('Creating a new model...')
-
-        style_mapper = StyleMapper(w_length=512)
-        generator = Generator(self.resolution, self.batch_size, w_length=512, depth=12)
+        
+        generator = Generator(self.resolution, self.batch_size, depth=12)
         discriminator = Discriminator(self.resolution, depth=12)
+
+        lr = 1e-4
+        generator.model.optimizer = keras.optimizers.RMSprop(lr)
+        discriminator.model.optimizer = keras.optimizers.RMSprop(lr)
 
         self.restored = False
 
-        self.initialize(style_mapper, generator, discriminator)
+        self.initialize(generator, discriminator)
 
     def restore(self):
         print('Restoring model...')
-
-        style_mapper = StyleMapper()
-        style_mapper.restore()
 
         generator = Generator(self.resolution, self.batch_size)
         generator.restore()
@@ -57,27 +50,28 @@ class AGAN:
 
         self.restored = True
 
-        self.initialize(style_mapper, generator, discriminator)
+        self.initialize(generator, discriminator)
 
     def save(self):
         self.G.save()
-        self.S.save()
         self.D.save()
 
     def generate_examples(self, name):
-        styles, noise = self.get_generator_inputs(self.batch_size)
-        generated = self.G([styles, noise])
+        z = self.get_latent_inputs(self.batch_size)
+        b = self.get_noise(self.batch_size)
+        Goz = self.G([z, b])
 
         fig = plt.figure(figsize=(16,16))
 
-        for i in range(min(16, generated.shape[0])):
+        for i in range(min(16, Goz.shape[0])):
             plt.subplot(4, 4, i + 1)
-            plt.imshow(tf.clip_by_value((generated[i,:,:] + 1)/2, clip_value_min=0, clip_value_max=1))
+            plt.imshow(tf.clip_by_value((Goz[i,:,:] + 1)/2, clip_value_min=0, clip_value_max=1))
             plt.axis('off')
 
         plt.savefig('./examples/' + name  + '.png')
         plt.close('all')
 
+    '''
     def generate_image(self, name):
         styles, noise = get_generator_inputs(1)
         generated = self.G([styles, noise], training=False)
@@ -108,6 +102,7 @@ class AGAN:
             if i == 0: shape = generated_frames[0].shape
 
         to_video(name)
+    '''
 
     def get_offset(self):
         if self.restored:
@@ -124,31 +119,25 @@ class AGAN:
         else:
             return 0
 
-    def get_generator_inputs(self, batches):
+    def get_latent_inputs(self, batches):
+        z = lambda: tf.random.normal([batches, self.G.z_length])
         n_blocks = self.G.n_style_blocks + 1
-        z = lambda: tf.random.normal([batches, self.S.latent_size])
 
         if random() >= self.mix_prob:
-            print('mix')
             d = int(random()*n_blocks)
             z1 = [z()]*d
             z2 = [z()]*(n_blocks - d)
 
             z_points = z1 + [] + z2
         else:
-            print('not mixed')
             z_points = [z()]*n_blocks
 
-        return self.custom_generator_inputs(batches, z_points)
+        return z_points
 
-    def custom_generator_inputs(self, batches, latent_points):
-        w_points = []
-        for z in latent_points:
-            w_points.append(self.S(z))
-
+    def get_noise(self, batches):
         noise = tf.random.uniform([batches, self.resolution, self.resolution, 1])
 
-        return w_points, noise
+        return noise
 
     # Loss from image being noisy (high-frequency "jumps")
     def denoise_loss(self, images, shift):
@@ -158,17 +147,11 @@ class AGAN:
 
         return tf.reduce_sum(tf.abs(x_var)) + tf.reduce_sum(tf.abs(y_var))
 
-    def loss_D(self, real, fake):
-        real_loss = K.relu(1 + real)
-        generated_loss = K.relu(1 - fake)
+    def loss_D(self, DoGoz, Dox):
+        return K.mean(Dox) - K.mean(DoGoz)
 
-        return K.mean(real_loss + generated_loss)
-
-    def loss_G(self, fake):
-        return K.relu(K.mean(fake))
-
-    def loss_PL(self):
-        return 0
+    def loss_G(self, DoGoz):
+        return K.mean(DoGoz)
 
     def train(self, dataset, epochs, example_interval, save_interval):
         example_offset = self.get_offset()
@@ -189,27 +172,28 @@ class AGAN:
             print('Epoch #{} took {} seconds'.format(epoch + 1, time.time() - start))
 
     @tf.function
-    def train_step(self, images, last):
-        with tf.GradientTape() as tape_S, tf.GradientTape() as tape_G, tf.GradientTape() as tape_D:
-            styles, noise = self.get_generator_inputs(self.batch_size)
+    def train_step(self, x, last):
+        for i in range(5):
+            with tf.GradientTape() as tape_S, tf.GradientTape() as tape_G, tf.GradientTape() as tape_D:
+                # Get latent vectors and noise
+                b = self.get_noise(self.batch_size)
+                z = self.get_latent_inputs(self.batch_size)
 
-            generated = self.G([styles, noise])
-            real = self.D(images)
-            fake = self.D(generated)
+                Goz = self.G([z, b])
+                Dox = self.D(x)
+                DoGoz = self.D(Goz)
 
-            loss_G = self.loss_G(fake)
-            loss_D = self.loss_D(real, fake)
+                loss_D = self.loss_D(DoGoz, Dox)
+                loss_G = self.loss_G(DoGoz)
 
-            if last:
-                print('Generator loss:')
-                tf.print(loss_G, output_stream=sys.stdout)
-                print('Discriminator loss:')
-                tf.print(loss_D, output_stream=sys.stdout)
+                if last and i == 4:
+                    tf.print(loss_G, output_stream=sys.stdout)
+                    tf.print(loss_D, output_stream=sys.stdout)
+            
+            gradients_D = tape_D.gradient(loss_D, self.D.model.trainable_variables)
+            self.D.model.optimizer.apply_gradients(zip(gradients_D, self.D.model.trainable_variables))
 
-        gradients_S = tape_S.gradient(loss_G, self.S.model.trainable_variables)
-        gradients_G = tape_G.gradient(loss_G, self.G.model.trainable_variables)
-        gradients_D = tape_D.gradient(loss_D, self.D.model.trainable_variables)
-
-        self.S.model.optimizer.apply_gradients(zip(gradients_S, self.S.model.trainable_variables))
-        self.G.model.optimizer.apply_gradients(zip(gradients_G, self.G.model.trainable_variables))
-        self.D.model.optimizer.apply_gradients(zip(gradients_D, self.D.model.trainable_variables))
+            # Only train generator 1 out of 5 iterations
+            if i == 4:
+                gradients_G = tape_G.gradient(loss_G, self.G.model.trainable_variables)
+                self.G.model.optimizer.apply_gradients(zip(gradients_G, self.G.model.trainable_variables))

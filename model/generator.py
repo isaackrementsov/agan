@@ -74,10 +74,10 @@ class ModulatedConv2D(layers.Layer):
         x = K.reshape(x, [1, x_shape[1], x_shape[2], -1])
         # Fuse kernels to be in a single layer weight-style instance
         weights = tf.reshape(tf.transpose(weights, [1,2,3,0,4]), [weights.shape[1], weights.shape[2], weights.shape[3], -1])
-
+        
         # Perform 3x3 convolution with styled kernels
         x = tf.nn.conv2d(x, weights, strides=self.strides, padding='SAME', data_format='NHWC')
-
+        
         # Separate output channels back into batches
         x_shape = K.shape(x)
         x = K.reshape(x, [-1, x_shape[1], x_shape[2], self.filters])
@@ -162,12 +162,15 @@ class StyleMapper:
 # Generator ("synthesis") network
 class Generator:
 
-    def __init__(self, max_size, batch_size, restore=False, w_length=512, upsample_size=2, depth=3):
+    def __init__(self, max_size, batch_size, restore=False, w_length=512, z_length=512, upsample_size=2, depth=3):
         self.max_size = max_size
         self.w_length = w_length
+        self.z_length = z_length
         self.upsample_size = upsample_size
         self.depth = depth
         self.seed = tf.ones([batch_size, w_length])
+        # Compute how many style blocks are needed to reach desired output size
+        self.n_style_blocks = int(np.log(max_size/4)/np.log(upsample_size))
 
         if restore:
             self.model = self.restore()
@@ -202,19 +205,14 @@ class Generator:
         else:
             y = layers.Activation('linear')(x)
 
-        r = lambda: np.random.normal()
-        suffix = str(y.shape[1]) + str(r() + r() + r())
-        if upsample:
-            suffix = 'upsample' + suffix
-
         # Style vector for use in tRGB
-        w_rgb = layers.Dense(filters, kernel_initializer=initializers.VarianceScaling(200/y.shape[2]), name='dense_wrgb' + suffix)(iw)
+        w_rgb = layers.Dense(filters, kernel_initializer=initializers.VarianceScaling(200/y.shape[2]))(iw)
         # Reshape style vector
-        w = layers.Dense(x.shape[-1], kernel_initializer='he_uniform', name='dense_w' + suffix)(iw)
+        w = layers.Dense(x.shape[-1], kernel_initializer='he_uniform')(iw)
         # Crop noise to fit image
         b = layers.Lambda(self.crop)([ib, y])
         # Pass noise through a dense layer to fit filter size
-        d = layers.Dense(filters, kernel_initializer='zeros', name='dense_d' + suffix)(b)
+        d = layers.Dense(filters, kernel_initializer='zeros')(b)
 
         y = self.mod_conv2d(filters)([y, w])
         y = layers.add([y, d])
@@ -230,11 +228,24 @@ class Generator:
         return y, self.tRGB(y, w_rgb)
 
     def new(self):
-        # Compute how many style blocks are needed to reach desired output size
-        self.n_style_blocks = int(np.log(self.max_size/4)/np.log(self.upsample_size))
+        n_blocks = self.n_style_blocks + 1
+        # Latent space input
+        z_points = [keras.Input([self.z_length]) for i in range(n_blocks)]
+        w_points = []
 
-        # Style vectors
-        w = [keras.Input([self.w_length]) for i in range(self.n_style_blocks + 1)]
+        for z in z_points:
+            # Style mapping network
+            w = layers.Dense(self.w_length)(z)
+            w = layers.LeakyReLU(0.2)(w)
+            w = layers.Dense(self.w_length)(w)
+            w = layers.LeakyReLU(0.2)(w)
+            w = layers.Dense(self.w_length)(w)
+            w = layers.LeakyReLU(0.2)(w)
+            w = layers.Dense(self.w_length)(w)
+            w = layers.LeakyReLU(0.2)(w)
+
+            w_points.append(w)
+
         # Constant "seed" vector for generator
         c = keras.Input([self.w_length])
         # Random noise vectors
@@ -249,25 +260,25 @@ class Generator:
         # Initial filter factor so that last block has "self.depth" filters
         filters = int(2**self.n_style_blocks*self.depth)
         # Initial 4x4 convolution layer
-        x, r = self.block(x, w[0], b, filters, upsample=False)
+        x, r = self.block(x, w_points[0], b, filters, upsample=False)
 
         for i in range(self.n_style_blocks):
             filters //= 2
-            x, r = self.block(x, w[i + 1], b, filters)
+            x, r = self.block(x, w_points[i + 1], b, filters)
             res.append(r)
 
         x = layers.add(res)
 
-        return keras.Model(inputs=[w, b, c], outputs=x)
+        return keras.Model(inputs=[z_points, b, c], outputs=x)
 
     def restore(self):
-        return keras.models.load_model('Generator', compile=False)
+        return keras.models.load_model('Generator', compile=False, custom_objects={'crop': self.crop})
 
     def save(self):
         keras.models.save_model(self.model, 'Generator')
 
     def __call__(self, inputs, training=True):
-        w = inputs[0]
+        z = inputs[0]
         b = inputs[1]
 
-        return self.model([w, b, self.seed], training=training)
+        return self.model([z, b, self.seed], training=training)
