@@ -9,7 +9,7 @@ import threading
 from model.network import AGAN
 from utils import to_array, gen_batches
 
-BATCH_SIZE = 10
+BATCH_SIZE = 60
 
 paths = os.listdir('assets/')
 training_data = gen_batches(paths, BATCH_SIZE)
@@ -17,7 +17,7 @@ print('Done preparing training data')
 
 aGAN = AGAN(
     batch_size=BATCH_SIZE,
-    resolution=256
+    resolution=128
 )
 aGAN.new()
 

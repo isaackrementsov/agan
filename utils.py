@@ -50,18 +50,11 @@ def to_image(tensor):
     # Initialize PIL Image using modified tensor
     return Image.fromarray(tensor)
 
-def to_frames(tensors, offset):
-    for i in range(len(tensors)):
-        tensor = tensors[i]
-
-        path = './frames/frame' + str(i + offset) + '.png'
-        to_image(tensor).save(path)
-
 def to_video(name):
     frames = os.listdir('frames/')
 
     def end_no(e):
-        return int(e.split('.png')[0].split('frame')[-1])
+        return int(e.split('.')[0].split('frame')[-1])
 
     frames.sort(key=end_no)
 
@@ -72,3 +65,6 @@ def to_video(name):
 
             writer.append_data(image)
             os.remove(full_path)
+
+def lerp(x1, x2, t, nt=1):
+    return [y1*(1-t/nt) + y2*t/nt for y1, y2 in zip(x1, x2)]

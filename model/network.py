@@ -12,7 +12,7 @@ from keras import layers
 
 from model.discriminator import Discriminator
 from model.generator import Generator
-from utils import to_image, to_video, to_frames
+from utils import to_image, to_video, lerp
 
 class AGAN:
 
@@ -27,11 +27,11 @@ class AGAN:
 
     def new(self):
         print('Creating a new model...')
-        
+
         generator = Generator(self.resolution, self.batch_size, depth=12)
         discriminator = Discriminator(self.resolution, depth=12)
 
-        lr = 1e-4
+        lr = 5e-5
         generator.model.optimizer = keras.optimizers.RMSprop(lr)
         discriminator.model.optimizer = keras.optimizers.RMSprop(lr)
 
@@ -57,9 +57,7 @@ class AGAN:
         self.D.save()
 
     def generate_examples(self, name):
-        z = self.get_latent_inputs(self.batch_size)
-        b = self.get_noise(self.batch_size)
-        Goz = self.G([z, b])
+        Goz = self.G([self.example_z, self.example_b])
 
         fig = plt.figure(figsize=(16,16))
 
@@ -71,38 +69,34 @@ class AGAN:
         plt.savefig('./examples/' + name  + '.png')
         plt.close('all')
 
-    '''
     def generate_image(self, name):
-        styles, noise = get_generator_inputs(1)
-        generated = self.G([styles, noise], training=False)
+        b = self.get_noise(self.batch_size)
+        z = self.get_latent_inputs(self.batch_size)
 
-        to_image(generated).save(name + '.jpg')
+        Goz = self.G([z, b], training=False)
+
+        to_image(Goz[0]).save(name + '.jpg')
 
     def generate_animation(self, name, frames, samples):
-        latent_points = tf.random.normal([samples, self.S.latent_size])
-        interpolated = tf.zeros([0, self.S.latent_size])
         frames_per_sample = frames//samples
+        b = self.get_noise(self.batch_size)
+        z1 = self.get_latent_inputs(self.batch_size)
 
-        for i in range(samples - 1):
-             start_vec = latent_points[i]
-             end_vec = latent_points[i + 1]
-             dz = (end_vec - start_vec)/frames_per_sample
+        for i in range(samples):
+            z2 = self.get_latent_inputs(self.batch_size)
 
-             for j in range(frames_per_sample):
-                 interpolated = tf.concat([interpolated, [start_vec + j*dz]], 0)
+            for j in range(frames_per_sample):
+                # Linear interpolation of the two latent points
+                z = lerp(z1, z2, j, frames_per_sample)
+                Goz = self.G([z, b], training=False)
+                # Frame number for putting animation together
+                frame_no = i*frames_per_sample + j
+                # Save the output for later processing (converting a batch of outputs directly to video can result in OOM)
+                to_image(Goz[0]).save('./frames/frame' + str(frame_no) + '.jpg')
 
-        interpolated_batches = tf.split(interpolated, num_or_size_splits=samples)
-        shape = (0,0,0)
-
-        for i in range(len(interpolated_batches)):
-            styles, noise = self.custom_generator_inputs(len(interpolated_batches[i]), interpolated_batches[i])
-            generated_frames = self.G([styles, noise], training=False)
-
-            to_frames(generated_frames, i*frames_per_sample)
-            if i == 0: shape = generated_frames[0].shape
+            z1 = z2
 
         to_video(name)
-    '''
 
     def get_offset(self):
         if self.restored:
@@ -147,14 +141,17 @@ class AGAN:
 
         return tf.reduce_sum(tf.abs(x_var)) + tf.reduce_sum(tf.abs(y_var))
 
-    def loss_D(self, DoGoz, Dox):
+    def loss_D(DoGoz, Dox):
         return K.mean(Dox) - K.mean(DoGoz)
 
-    def loss_G(self, DoGoz):
+    def loss_G(DoGoz):
         return K.mean(DoGoz)
 
     def train(self, dataset, epochs, example_interval, save_interval):
         example_offset = self.get_offset()
+
+        self.example_z = self.get_latent_inputs(self.batch_size)
+        self.example_b = self.get_noise(self.batch_size)
 
         for epoch in range(epochs):
             start = time.time()
@@ -174,7 +171,7 @@ class AGAN:
     @tf.function
     def train_step(self, x, last):
         for i in range(5):
-            with tf.GradientTape() as tape_S, tf.GradientTape() as tape_G, tf.GradientTape() as tape_D:
+            with tf.GradientTape() as tape_G, tf.GradientTape() as tape_D:
                 # Get latent vectors and noise
                 b = self.get_noise(self.batch_size)
                 z = self.get_latent_inputs(self.batch_size)
@@ -183,13 +180,13 @@ class AGAN:
                 Dox = self.D(x)
                 DoGoz = self.D(Goz)
 
-                loss_D = self.loss_D(DoGoz, Dox)
-                loss_G = self.loss_G(DoGoz)
+                loss_D = AGAN.loss_D(DoGoz, Dox)
+                loss_G = AGAN.loss_G(DoGoz)
 
                 if last and i == 4:
                     tf.print(loss_G, output_stream=sys.stdout)
                     tf.print(loss_D, output_stream=sys.stdout)
-            
+
             gradients_D = tape_D.gradient(loss_D, self.D.model.trainable_variables)
             self.D.model.optimizer.apply_gradients(zip(gradients_D, self.D.model.trainable_variables))
 
