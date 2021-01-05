@@ -97,7 +97,7 @@ class LatentMapper:
         with tf.GradientTape() as tape:
             s = tf.random.uniform([self.batch_size, self.vector_size], minval=-10, maxval=10)
             z = self.Z(s)
-            Goz = self.G(z, trainable=False)
+            Goz = self.G(z, training=False)
             I = sigmoid(summarize(Goz))
 
             loss = self.loss(I, s, Goz)

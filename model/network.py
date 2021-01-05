@@ -77,6 +77,15 @@ class AGAN:
 
         to_image(Goz[0]).save(name + '.jpg')
 
+    def generate_from_mapper(self, name, latent_points):
+        # Insert batch dimension to latent points
+        z = tf.expand_dims(latent_points, axis=1)
+        b = self.get_noise(1)
+
+        Goz = self.G([z, b], training=False)
+
+        to_image(Goz[0]).save(name + '.jpg')
+
     def generate_animation(self, name, frames, samples):
         frames_per_sample = frames//samples
         b = self.get_noise(self.batch_size)
@@ -113,9 +122,12 @@ class AGAN:
         else:
             return 0
 
+    def n_blocks(self):
+        return self.G.n_style_blocks + 1
+
     def get_latent_inputs(self, batches):
         z = lambda: tf.random.normal([batches, self.G.z_length])
-        n_blocks = self.G.n_style_blocks + 1
+        n_blocks = self.n_blocks()
 
         if random() >= self.mix_prob:
             d = int(random()*n_blocks)

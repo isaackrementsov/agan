@@ -1,4 +1,5 @@
 from tensorflow import keras
+from keras.activations import tanh
 
 from mapper_model.network import LatentMapper
 from model.network import AGAN
@@ -8,7 +9,7 @@ def rating(Goz, discriminator):
     DoGoz = discriminator(Goz)
     loss = AGAN.loss_G(DoGoz)
 
-    return loss
+    return tanh(loss)
 
 mapper = LatentMapper(
     batch_size=100,
@@ -28,7 +29,7 @@ except Exception as e:
     print('Training paused')
 finally:
     print('Saving...')
-    aGAN.save()
+    mapper.save()
 
     print('Clearing session...')
     keras.backend.clear_session()
