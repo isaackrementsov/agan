@@ -28,8 +28,8 @@ class AGAN:
     def new(self):
         print('Creating a new model...')
 
-        generator = Generator(self.resolution, self.batch_size, depth=12)
-        discriminator = Discriminator(self.resolution, depth=12)
+        generator = Generator(self.resolution, depth=6)
+        discriminator = Discriminator(self.resolution, depth=6)
 
         lr = 5e-5
         generator.model.optimizer = keras.optimizers.RMSprop(lr)
@@ -57,8 +57,7 @@ class AGAN:
         self.D.save()
 
     def generate_examples(self, name):
-        Goz = self.G([self.example_z, self.example_b])
-
+        Goz = self.G(self.example_z)
         fig = plt.figure(figsize=(16,16))
 
         for i in range(min(16, Goz.shape[0])):
@@ -70,25 +69,21 @@ class AGAN:
         plt.close('all')
 
     def generate_image(self, name):
-        b = self.get_noise(self.batch_size)
         z = self.get_latent_inputs(self.batch_size)
-
-        Goz = self.G([z, b], training=False)
+        Goz = self.G(z, training=False)
 
         to_image(Goz[0]).save(name + '.jpg')
 
     def generate_from_mapper(self, name, latent_points):
         # Insert batch dimension to latent points
         z = tf.expand_dims(latent_points, axis=1)
-        b = self.get_noise(1)
-
-        Goz = self.G([z, b], training=False)
+        Goz = self.G(z, training=False)
 
         to_image(Goz[0]).save(name + '.jpg')
 
     def generate_animation(self, name, frames, samples):
         frames_per_sample = frames//samples
-        b = self.get_noise(self.batch_size)
+
         z1 = self.get_latent_inputs(self.batch_size)
 
         for i in range(samples):
@@ -97,7 +92,7 @@ class AGAN:
             for j in range(frames_per_sample):
                 # Linear interpolation of the two latent points
                 z = lerp(z1, z2, j, frames_per_sample)
-                Goz = self.G([z, b], training=False)
+                Goz = self.G(z, training=False)
                 # Frame number for putting animation together
                 frame_no = i*frames_per_sample + j
                 # Save the output for later processing (converting a batch of outputs directly to video can result in OOM)
@@ -122,28 +117,8 @@ class AGAN:
         else:
             return 0
 
-    def n_blocks(self):
-        return self.G.n_style_blocks + 1
-
     def get_latent_inputs(self, batches):
-        z = lambda: tf.random.normal([batches, self.G.z_length])
-        n_blocks = self.n_blocks()
-
-        if random() >= self.mix_prob:
-            d = int(random()*n_blocks)
-            z1 = [z()]*d
-            z2 = [z()]*(n_blocks - d)
-
-            z_points = z1 + [] + z2
-        else:
-            z_points = [z()]*n_blocks
-
-        return z_points
-
-    def get_noise(self, batches):
-        noise = tf.random.uniform([batches, self.resolution, self.resolution, 1])
-
-        return noise
+        return tf.random.normal([batches, self.G.z_length])
 
     # Loss from image being noisy (high-frequency "jumps")
     def denoise_loss(self, images, shift):
@@ -163,7 +138,6 @@ class AGAN:
         example_offset = self.get_offset()
 
         self.example_z = self.get_latent_inputs(self.batch_size)
-        self.example_b = self.get_noise(self.batch_size)
 
         for epoch in range(epochs):
             start = time.time()
@@ -184,11 +158,10 @@ class AGAN:
     def train_step(self, x, last):
         for i in range(5):
             with tf.GradientTape() as tape_G, tf.GradientTape() as tape_D:
-                # Get latent vectors and noise
-                b = self.get_noise(self.batch_size)
+                # Get noise vector
                 z = self.get_latent_inputs(self.batch_size)
 
-                Goz = self.G([z, b])
+                Goz = self.G(z)
                 Dox = self.D(x)
                 DoGoz = self.D(Goz)
 
