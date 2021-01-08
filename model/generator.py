@@ -74,10 +74,10 @@ class ModulatedConv2D(layers.Layer):
         x = K.reshape(x, [1, x_shape[1], x_shape[2], -1])
         # Fuse kernels to be in a single layer weight-style instance
         weights = tf.reshape(tf.transpose(weights, [1,2,3,0,4]), [weights.shape[1], weights.shape[2], weights.shape[3], -1])
-        
+
         # Perform 3x3 convolution with styled kernels
         x = tf.nn.conv2d(x, weights, strides=self.strides, padding='SAME', data_format='NHWC')
-        
+
         # Separate output channels back into batches
         x_shape = K.shape(x)
         x = K.reshape(x, [-1, x_shape[1], x_shape[2], self.filters])
@@ -117,47 +117,6 @@ class ModulatedConv2D(layers.Layer):
 
         base_config = super(ModulatedConv2D, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
-
-# Style mapping network
-class StyleMapper:
-
-    def __init__(self, restore=False, w_length=512, latent_size=512):
-        self.w_length = w_length
-        self.latent_size = latent_size
-
-        # Make new or restore model
-        if restore:
-            self.model = self.restore()
-        else:
-            self.model = self.new()
-
-    # Load saved model
-    def restore(self):
-        return keras.models.load_model('StyleMapper', compile=False)
-
-    # Save current model state
-    def save(self):
-        self.model.save('StyleMapper')
-
-    # Create new model
-    def new(self):
-        # Make network from 8 fully connected layers
-
-        model = keras.Sequential()
-        # Transforms point in latent space to style vector
-        model.add(layers.Dense(self.w_length, input_shape=[self.latent_size]))
-        model.add(layers.LeakyReLU(0.2))
-        model.add(layers.Dense(self.w_length))
-        model.add(layers.LeakyReLU(0.2))
-        model.add(layers.Dense(self.w_length))
-        model.add(layers.LeakyReLU(0.2))
-        model.add(layers.Dense(self.w_length))
-        model.add(layers.LeakyReLU(0.2))
-
-        return model
-
-    def __call__(self, inputs, training=True):
-        return self.model(inputs, training=training)
 
 # Generator ("synthesis") network
 class Generator:
