@@ -13,7 +13,7 @@ class Clip(keras.constraints.Constraint):
 
     def __call__(self, weights):
         # Keep weights within [clip_value_min, clip_value_max]
-        return K.clip(weights, self.clip_value_min, self.clip_value_min)
+        return K.clip(weights, self.clip_value_min, self.clip_value_max)
 
     def get_config(self):
         return {'clip_value_max': self.clip_value_max, 'clip_value_min': self.clip_value_min}
