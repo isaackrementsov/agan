@@ -3,16 +3,32 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 
+class Clip(keras.constraints.Constraint):
+
+    def __init__(self, clip_value_max, clip_value_min):
+        # Set clip values
+        self.clip_value_max = clip_value_max
+        self.clip_value_min = clip_value_min
+
+    def __call__(self, weights):
+        # Keep weights within [clip_value_min, clip_value_max]
+        return K.clip(weights, self.clip_value_min, self.clip_value_min)
+
+    def get_config(self):
+        return {'clip_value_max': self.clip_value_max, 'clip_value_min': self.clip_value_min}
+
 # Discriminator network
 class Discriminator:
 
-    def __init__(self, max_size, depth=3, restore=False, downsample_size=2):
+    def __init__(self, max_size, depth=3, restore=False, downsample_size=2, clip_range=(0.01,0.01)):
         # Input image resolution
         self.max_size = max_size
         # Determines number of filters per convolution (first layer depth)
         self.depth = depth
         # Factor by which to downsample between blocks
         self.downsample_size = downsample_size
+        # Weight clipping constraint
+        self.clip_constraint = Clip(*clip_range)
 
         # Either restore or create a new model
         if restore:
@@ -23,12 +39,12 @@ class Discriminator:
     # Block of discriminator layers
     def block(self, x, filters, avg_pooling=True):
         # Residual output
-        r = layers.Conv2D(filters, (1,1), kernel_initializer='he_uniform')(x)
+        r = layers.Conv2D(filters, (1,1), kernel_initializer='he_uniform', kernel_constraint=self.clip_constraint)(x)
 
         # Apply two sets of convolutions
-        x = layers.Conv2D(filters, (3,3), padding='same', kernel_initializer='he_uniform')(x)
+        x = layers.Conv2D(filters, (3,3), padding='same', kernel_initializer='he_uniform', kernel_constraint=self.clip_constraint)(x)
         x = layers.LeakyReLU(0.2)(x)
-        x = layers.Conv2D(filters, (3,3), padding='same', kernel_initializer='he_uniform')(x)
+        x = layers.Conv2D(filters, (3,3), padding='same', kernel_initializer='he_uniform', kernel_constraint=self.clip_constraint)(x)
         x = layers.LeakyReLU(0.2)(x)
         # Add the residual output
         x = layers.add([x,r])
