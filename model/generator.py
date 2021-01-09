@@ -32,7 +32,7 @@ class Generator:
 
         return x
 
-    def conv2d(self, filters, kernel_size=(3,3), kernel_initializer='he_uniform'):
+    def conv2d(self, filters, kernel_size=(3,3), kernel_initializer='glorot_uniform'):
         return layers.Conv2D(filters, kernel_size, kernel_initializer=kernel_initializer)
 
     def upsample(self, size):
@@ -54,7 +54,7 @@ class Generator:
         # Latent space input
         z = keras.Input([self.z_length])
 
-        x = layers.Dense(self.depth*4**3, activation='relu', kernel_initializer='normal')(z)
+        x = layers.Dense(self.depth*4**3, activation='relu')(z)
         x = layers.Reshape([4, 4, 4*self.depth])(x)
 
         # Stores outputs from each block for progressive growth-like training
