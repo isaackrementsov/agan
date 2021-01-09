@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
+import keras.backend as K
 
 class Clip(keras.constraints.Constraint):
 
