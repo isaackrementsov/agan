@@ -21,7 +21,7 @@ class Clip(keras.constraints.Constraint):
 # Discriminator network
 class Discriminator:
 
-    def __init__(self, max_size, depth=3, restore=False, downsample_size=2, clip_range=(0.01,0.01)):
+    def __init__(self, max_size, depth=3, restore=False, downsample_size=2, clip_range=(0.01,-0.01)):
         # Input image resolution
         self.max_size = max_size
         # Determines number of filters per convolution (first layer depth)
