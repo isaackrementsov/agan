@@ -50,27 +50,24 @@ class Generator:
         return y, self.tRGB(y)
 
     def new(self):
-        n_blocks = self.n_style_blocks + 1
         # Latent space input
         z = keras.Input([self.z_length])
 
-        x = layers.Dense(self.depth*4**3, activation='relu')(z)
-        x = layers.Reshape([4, 4, 4*self.depth])(x)
+        x = layers.Dense(25*25*180, use_bias=False)(z)
+        x = layers.BatchNormalization()(x)
+        x = layers.LeakyReLU()(x)
+        x = layers.Reshape((25,25,180))(x)
 
-        # Stores outputs from each block for progressive growth-like training
-        res = []
+        x = layers.Conv2DTranspose(128, (5,5), strides=(1,1), padding='same', use_bias=False, activation='relu')(x)
+        x = layers.BatchNormalization()(x)
 
-        # Initial filter factor so that last block has "self.depth" filters
-        filters = int(2**self.n_style_blocks*self.depth)
-        # Initial 4x4 convolution layer
-        x, r = self.block(x, filters, upsample=False)
+        x = layers.Conv2DTranspose(64, (5,5), strides=(1,1), padding='same', use_bias=False, activation='relu')(x)
+        x = layers.BatchNormalization()(x)
 
-        for i in range(self.n_style_blocks):
-            filters //= 2
-            x, r = self.block(x, filters)
-            res.append(r)
+        x = layers.Conv2DTranspose(32, (5,5), strides=(3,3), padding='same', use_bias=False, activation='relu')(x)
+        x = layers.BatchNormalization()(x)
 
-        x = layers.add(res)
+        x = layers.Conv2DTranspose(3, (5,5), strides=(3,3), padding='same', use_bias=False, activation='tanh')(x)
 
         return keras.Model(inputs=z, outputs=x)
 

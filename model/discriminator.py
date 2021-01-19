@@ -57,26 +57,32 @@ class Discriminator:
         return x
 
     def new(self):
-        # H/W of last feature map before dense layers
-        min_size = 4
-        # Number of downsizing blocks required
-        n_layers = int(np.log(min_size/self.max_size)/np.log(self.downsample_size))
-
         # Input RGB image
         x = keras.Input([self.max_size, self.max_size, 3])
         y = x
-        # Depth parameter determines initial number of filters
-        filters = self.depth
 
-        # Add the number of blocks required to go from input res => 4x4
-        for i in range(n_layers):
-            filters *= 2
-            y = self.block(y, filters)
+        y = layers.Conv2D(16, (2,2), strides=(2,2), padding='same', input_shape=(450,450,3))(x)
+        y = layers.LeakyReLU()(y)
+        y = layers.Dropout(0.05)(y)
 
-        # Final convolution before dense layer
-        y = self.block(y, filters, avg_pooling=False)
-        # Flatten final convolution feature map and output a score
+        y = layers.Conv2D(32, (2,2), strides=(2,2), padding='same')(y)
+        y = layers.LeakyReLU()(y)
+
+        y = layers.Conv2D(64, (2,2), strides=(2,2), padding='same')(y)
+        y = layers.LeakyReLU()(y)
+
+        y = layers.Conv2D(128, (2,2), strides=(2,2), padding='same')(y)
+        y = layers.LeakyReLU()(y)
+
         y = layers.Flatten()(y)
+        y = layers.Dense(32)(y)
+        y = layers.Dense(16, activation='relu')(y)
+        y = layers.Dense(8,  activation='relu')(y)
+        y = layers.LeakyReLU()(y)
+        y = layers.Dense(16)(y)
+        y = layers.LeakyReLU()(y)
+        y = layers.Dense(8)(y)
+        y = layers.LeakyReLU()(y)
         y = layers.Dense(1)(y)
 
         return keras.Model(inputs=x, outputs=y)

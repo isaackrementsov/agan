@@ -17,7 +17,7 @@ print('Done preparing training data')
 
 aGAN = AGAN(
     batch_size=BATCH_SIZE,
-    resolution=128
+    resolution=225
 )
 aGAN.new()
 

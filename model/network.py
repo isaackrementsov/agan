@@ -25,15 +25,18 @@ class AGAN:
         self.G = generator
         self.D = discriminator
 
+        self.bce = keras.losses.BinaryCrossentropy(from_logits=True)
+
     def new(self):
         print('Creating a new model...')
 
         generator = Generator(self.resolution, depth=6)
         discriminator = Discriminator(self.resolution, depth=6)
 
-        lr = 5e-5
-        generator.model.optimizer = keras.optimizers.RMSprop(lr)
-        discriminator.model.optimizer = keras.optimizers.RMSprop(lr)
+        lr = 1e-4
+        b1 = 0.5
+        generator.model.optimizer = keras.optimizers.Adam(lr, beta_1=b1)
+        discriminator.model.optimizer = keras.optimizers.Adam(lr, beta_1=b1)
 
         self.restored = False
 
@@ -129,10 +132,13 @@ class AGAN:
         return tf.reduce_sum(tf.abs(x_var)) + tf.reduce_sum(tf.abs(y_var))
 
     def loss_D(DoGoz, Dox):
-        return K.mean(Dox) - K.mean(DoGoz)
+        real_loss = self.bce(tf.ones_like(Dox), Dox)
+        generated_loss = self.bce(tf.zeros_like(DoGoz), DoGoz)
+
+        return real_loss + generated_loss
 
     def loss_G(DoGoz):
-        return K.mean(DoGoz)
+        return self.bce(tf.ones_like(DoGoz), DoGoz)
 
     def train(self, dataset, epochs, example_interval, save_interval):
         example_offset = self.get_offset()
@@ -156,26 +162,23 @@ class AGAN:
 
     @tf.function
     def train_step(self, x, last):
-        for i in range(5):
-            with tf.GradientTape() as tape_G, tf.GradientTape() as tape_D:
-                # Get noise vector
-                z = self.get_latent_inputs(self.batch_size)
+        with tf.GradientTape() as tape_G, tf.GradientTape() as tape_D:
+            # Get noise vector
+            z = self.get_latent_inputs(self.batch_size)
 
-                Goz = self.G(z)
-                Dox = self.D(x)
-                DoGoz = self.D(Goz)
+            Goz = self.G(z)
+            Dox = self.D(x)
+            DoGoz = self.D(Goz)
 
-                loss_D = AGAN.loss_D(DoGoz, Dox)
-                loss_G = AGAN.loss_G(DoGoz)
+            loss_D = AGAN.loss_D(DoGoz, Dox)
+            loss_G = AGAN.loss_G(DoGoz)
 
-                if last and i == 4:
-                    tf.print(loss_G, output_stream=sys.stdout)
-                    tf.print(loss_D, output_stream=sys.stdout)
+            if last:
+                tf.print(loss_G, output_stream=sys.stdout)
+                tf.print(loss_D, output_stream=sys.stdout)
 
-            gradients_D = tape_D.gradient(loss_D, self.D.model.trainable_variables)
-            self.D.model.optimizer.apply_gradients(zip(gradients_D, self.D.model.trainable_variables))
+        gradients_D = tape_D.gradient(loss_D, self.D.model.trainable_variables)
+        self.D.model.optimizer.apply_gradients(zip(gradients_D, self.D.model.trainable_variables))
 
-            # Only train generator 1 out of 5 iterations
-            if i == 4:
-                gradients_G = tape_G.gradient(loss_G, self.G.model.trainable_variables)
-                self.G.model.optimizer.apply_gradients(zip(gradients_G, self.G.model.trainable_variables))
+        gradients_G = tape_G.gradient(loss_G, self.G.model.trainable_variables)
+        self.G.model.optimizer.apply_gradients(zip(gradients_G, self.G.model.trainable_variables))
